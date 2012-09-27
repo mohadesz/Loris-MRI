@@ -33,6 +33,7 @@ close STDIN;
 my $counter = 0;
 
 ## foreach series, batch magic
+print "$Settings::tarchiveLibraryDir" ;
 foreach my $input (@inputs)
 {
     $counter++;
@@ -46,15 +47,19 @@ foreach my $input (@inputs)
     ## processor will do all the real magic
 
     $input =~ s/\t/ /;
+    
     my $command = "copy_and_process_tarchive $input $Settings::prefix $Settings::mail_user " .  Settings::getIncomingDir($input, $Settings::tarchiveLibraryDir);
+
     ##if qsub is enabled use it
-    if ($Settings::is_qsub) {
+print "if_sge $Settings::if_sge";
+    if ($Settings::if_sge) {
 	     open QSUB, "| qsub -V -e $stderr -o $stdout -N process_tarchive_${counter}";
     	 print QSUB $command;
     	 close QSUB;
     }
     ##if qsub is not enabled
     else {
+       print "not enabled";
          system($command);
     }
 
