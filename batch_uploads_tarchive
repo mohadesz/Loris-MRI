@@ -48,7 +48,7 @@ foreach my $input (@inputs)
 
     $input =~ s/\t/ /;
     
-    my $command = "copy_and_process_tarchive $input $Settings::prefix $Settings::mail_user Settings::getIncomingDir($input, $Settings::tarchiveLibraryDir)";
+    my $command = "copy_and_process_tarchive $input $Settings::prefix $Settings::mail_user " . Settings::getIncomingDir($input, $Settings::tarchiveLibraryDir);
     print "command is $command";
     ##if qsub is enabled use it
 print "if_sge $Settings::if_sge";
