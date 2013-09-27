@@ -390,12 +390,19 @@ Returns: Textual name of scan type
 =cut
 
 sub identify_scan_db {
-    my ($psc, $objective, $fileref, $dbhr) = @_;
 
+
+    my  ($psc, $subjectref, $fileref, $dbhr,$minc_location) = @_;
+
+    my $candid = $${subjectref}->{'CandID'};
+    my $pscid = $${subjectref}->{'PSCID'};
+    my $visit = $${subjectref}->{'visitLabel'};
+    my $objective = $${subjectref}->{'subprojectID'};
     # get parameters from minc header
     my $tr = $${fileref}->getParameter('repetition_time');
     my $te = $${fileref}->getParameter('echo_time');
     my $ti = $${fileref}->getParameter('inversion_time');
+    my $patient_name =  $${fileref}->getParameter('patient_name');
     if (defined($tr)) {  $tr = &Math::Round::nearest(0.01, $tr*1000);  }
     if (defined($te)) {  $te = &Math::Round::nearest(0.01, $te*1000);  }
     if (defined($ti)) {  $ti = &Math::Round::nearest(0.01, $ti*1000);  }
@@ -403,7 +410,9 @@ sub identify_scan_db {
     my $xstep = $${fileref}->getParameter('xstep');
     my $ystep = $${fileref}->getParameter('ystep');
     my $zstep = $${fileref}->getParameter('zstep');
-    
+
+    my $time = $${fileref}->getParameter('time');    
+
     my $xspace = $${fileref}->getParameter('xspace');
     my $yspace = $${fileref}->getParameter('yspace');
     my $zspace = $${fileref}->getParameter('zspace');
@@ -414,6 +423,7 @@ sub identify_scan_db {
     if(0) {
         print "\ntr:\t$tr\nte:\t$te\nti:\t$ti\nst:\t$slice_thickness\n";
         print "xspace:\t$xspace\nyspace:\t$yspace\nzspace:\t$zspace\n";
+	print "time;\t$time\n";
         print "xstep:\t$xstep\nystep:\t$ystep\nzstep:\t$zstep\n";
     }
     
@@ -444,7 +454,7 @@ sub identify_scan_db {
     
     # get the list of protocols for a site their scanner and subproject
     $query = "SELECT Scan_type, Objective, ScannerID, Center_name, TR_range, TE_range, TI_range, slice_thickness_range, xspace_range, yspace_range, zspace_range,
-              xstep_range, ystep_range, zstep_range, series_description_regex
+              xstep_range, ystep_range, zstep_range, time_range, series_description_regex
               FROM mri_protocol
               WHERE
              (Center_name='$psc' AND ScannerID='$ScannerID' AND Objective='$objective')
@@ -475,6 +485,7 @@ sub identify_scan_db {
             print &in_range($xstep, $rowref->{'xstep_range'}) ? "xstep\t" : '';
             print &in_range($ystep, $rowref->{'ystep_range'}) ? "ystep\t" : '';
             print &in_range($zstep, $rowref->{'zstep_range'}) ? "zstep\t" : '';
+            print &in_range($time, $rowref->{'time_range'}) ? "time\t" : '';
             print "\n";
         }
         
@@ -490,14 +501,28 @@ sub identify_scan_db {
 	    
 	    && (!$rowref->{'xstep_range'} || &in_range($xstep, $rowref->{'xstep_range'}))
 	    && (!$rowref->{'ystep_range'} || &in_range($ystep, $rowref->{'ystep_range'}))
-	    && (!$rowref->{'zstep_range'} || &in_range($zstep, $rowref->{'zstep_range'})))) {
+	    && (!$rowref->{'zstep_range'} || &in_range($zstep, $rowref->{'zstep_range'}))
+	    && (!$rowref->{'time_range'} || &in_range($time, $rowref->{'time_range'})))) {
             return &scan_type_id_to_text($rowref->{'Scan_type'}, $dbhr);
         }
     }
     # if we got here, we're really clueless...
+    insert_violated_scans($dbhr,$series_description,$minc_location,$patient_name,$candid, $pscid,$visit,$tr,$te,$ti,$slice_thickness,$xstep,$ystep,$zstep,$xspace,$yspace,$zspace,$time);
+
     return 'unknown';
 }    
 
+
+sub insert_violated_scans {
+
+   my ($dbhr,$series_description,$minc_location,$patient_name,$candid, $pscid,$visit,$tr,$te,$ti,$slice_thickness,$xstep,$ystep,$zstep,$xspace,$yspace,$zspace,$time) = @_;
+   my $query;
+   my $sth;
+    
+   $sth = $${dbhr}->prepare("INSERT INTO mri_protocol_violated_scans (CandID,PSCID,time_run,series_description,minc_location,PatientName,TR_range,TE_range,TI_range,slice_thickness_range,xspace_range,yspace_range,zspace_range,xstep_range,ystep_range,zstep_range,time_range) VALUES (?,?,now(),?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+   my $success = $sth->execute($candid,$pscid,$series_description,$minc_location,$patient_name,$tr,$te,$ti,$slice_thickness,$xspace,$yspace,$zspace,$xstep,$ystep,$zstep,$time);
+
+}
 # ------------------------------ MNI Header ----------------------------------
 #@NAME       : debug_inrange
 #@INPUT      : scalar value, scalar range string
@@ -675,7 +700,7 @@ sub register_db {
     # build the insert query
     my $query = "INSERT INTO files SET ";
 
-    foreach my $key ('File', 'SessionID', 'CoordinateSpace', 'ClassifyAlgorithm', 'OutputType', 'AcquisitionProtocolID', 'FileType', 'InsertedByUserID') {
+    foreach my $key ('File', 'SeriesUID', 'EchoTime','SessionID', 'CoordinateSpace', 'ClassifyAlgorithm', 'OutputType', 'AcquisitionProtocolID', 'FileType', 'InsertedByUserID','SourcePipeline','PipelineDate','SourceFileID') {
         # add the key=value pair to the query
         $query .= "$key=".$dbh->quote($${fileData{$key}}).", ";
     }
@@ -1039,7 +1064,7 @@ Returns: 1 if the pic was generated or 0 otherwise.
 =cut
 
 sub make_pics {
-    my ($fileref, $dest_dir, $horizontalPics) = @_;
+    my ($fileref, $data_dir, $dest_dir, $horizontalPics) = @_;
     my $file = $$fileref;
     my $dbhr = $file->getDatabaseHandleRef();
     
@@ -1048,7 +1073,7 @@ sub make_pics {
     my $rowhr = $sth->fetchrow_hashref();
     
     my $acquisitionProtocol = scan_type_id_to_text($file->getFileDatum('AcquisitionProtocolID'), $dbhr);
-    my $minc = $file->getFileDatum('File');
+    my $minc = $data_dir . '/' . $file->getFileDatum('File');
     my $mincbase = basename($minc);
     $mincbase =~ s/\.mnc(\.gz)?$//;
 
@@ -1078,7 +1103,7 @@ referenced by C<$file_ref>.
 Returns: 1 if the JIV data was generated or 0 otherwise.
 =cut
 sub make_jiv {
-    my ($fileref, $dest_dir) = @_;
+    my ($fileref, $data_dir, $dest_dir) = @_;
     my $file = $$fileref;
     my $dbhr = $file->getDatabaseHandleRef();
 
@@ -1086,7 +1111,7 @@ sub make_jiv {
     $sth->execute();
     
     my $rowhr = $sth->fetchrow_hashref();
-    my $minc = $file->getFileDatum('File');
+    my $minc = $data_dir . '/' . $file->getFileDatum('File');
     my $jiv = $dest_dir . '/' . $rowhr->{'CandID'};
 
     # generate jiv into temp dir
@@ -1113,7 +1138,7 @@ sub make_jiv {
     `mv $tempdir/* $jiv/`;
 
     # update mri table
-    $file->setParameter('jiv_path', $jiv);
+    $file->setParameter('jiv_path', $rowhr->{'CandID'});
     return 1;
 }
 
