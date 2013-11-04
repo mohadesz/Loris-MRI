@@ -416,7 +416,7 @@ sub identify_scan_db {
     my $xspace = $${fileref}->getParameter('xspace');
     my $yspace = $${fileref}->getParameter('yspace');
     my $zspace = $${fileref}->getParameter('zspace');
-    
+    my $seriesUID = $${fileref}->getParameter('series_instance_uid');
     my $slice_thickness = $${fileref}->getParameter('slice_thickness');
     my $series_description = $${fileref}->getParameter('series_description');
     
@@ -507,7 +507,7 @@ sub identify_scan_db {
         }
     }
     # if we got here, we're really clueless...
-    insert_violated_scans($dbhr,$series_description,$minc_location,$patient_name,$candid, $pscid,$visit,$tr,$te,$ti,$slice_thickness,$xstep,$ystep,$zstep,$xspace,$yspace,$zspace,$time);
+    insert_violated_scans($dbhr,$series_description,$minc_location,$patient_name,$candid, $pscid,$visit,$tr,$te,$ti,$slice_thickness,$xstep,$ystep,$zstep,$xspace,$yspace,$zspace,$time,$seriesUID);
 
     return 'unknown';
 }    
@@ -515,12 +515,12 @@ sub identify_scan_db {
 
 sub insert_violated_scans {
 
-   my ($dbhr,$series_description,$minc_location,$patient_name,$candid, $pscid,$visit,$tr,$te,$ti,$slice_thickness,$xstep,$ystep,$zstep,$xspace,$yspace,$zspace,$time) = @_;
+   my ($dbhr,$series_description,$minc_location,$patient_name,$candid, $pscid,$visit,$tr,$te,$ti,$slice_thickness,$xstep,$ystep,$zstep,$xspace,$yspace,$zspace,$time,$seriesUID) = @_;
    my $query;
    my $sth;
     
-   $sth = $${dbhr}->prepare("INSERT INTO mri_protocol_violated_scans (CandID,PSCID,time_run,series_description,minc_location,PatientName,TR_range,TE_range,TI_range,slice_thickness_range,xspace_range,yspace_range,zspace_range,xstep_range,ystep_range,zstep_range,time_range) VALUES (?,?,now(),?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-   my $success = $sth->execute($candid,$pscid,$series_description,$minc_location,$patient_name,$tr,$te,$ti,$slice_thickness,$xspace,$yspace,$zspace,$xstep,$ystep,$zstep,$time);
+   $sth = $${dbhr}->prepare("INSERT INTO mri_protocol_violated_scans (CandID,PSCID,time_run,series_description,minc_location,PatientName,TR_range,TE_range,TI_range,slice_thickness_range,xspace_range,yspace_range,zspace_range,xstep_range,ystep_range,zstep_range,time_range,SeriesUID) VALUES (?,?,now(),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+   my $success = $sth->execute($candid,$pscid,$series_description,$minc_location,$patient_name,$tr,$te,$ti,$slice_thickness,$xspace,$yspace,$zspace,$xstep,$ystep,$zstep,$time,$seriesUID);
 
 }
 # ------------------------------ MNI Header ----------------------------------
