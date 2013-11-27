@@ -97,7 +97,7 @@ sub Execute {
     print "file path is $file_path \n"    ;
 	chomp $file_path;
     my ($file_target,$visit_label,$candid,$pscid_from_folder,$patient_name,$archive_location,$cmd,
-        $result,$file_name,$folder_name)='';
+        $result,$file_name,$folder_name,$tarchive_id)='';
 
     #####Check to see if the file is of type tgz before untarring it############
     ##$foldername = dirname($file_path)##folder name
@@ -154,12 +154,12 @@ sub Execute {
 #####be updated######################################################################
 #####################################################################################
 	    if (!($finalTarget eq '')) {
-            $cmd = "$update_header $finalTarget -verbose -set '(0010,0010)' $patient_name -database  -profile prod";
+            $cmd = "$update_header $finalTarget -verbose -set '(0010,0010)' $patient_name -set '(0010,0020)' $patient_id -database  -profile prod";
    		    print $cmd . "\n";
   		    system ($cmd);
-   	      	$cmd = "$update_header $finalTarget  -verbose -set '(0010,0020)' $patient_id -database  -profile prod";
-    		print $cmd . "\n";
-	    	$result = `$cmd`;
+   	      	##$cmd = "$update_header $finalTarget  -verbose -set '(0010,0020)' $patient_id -database  -profile prod";
+    		##print $cmd . "\n";
+	    	##$result = `$cmd`;
 ####################################################################################
 #######################if updated or not############################################
 ########################write the results into a file###############################
@@ -176,6 +176,15 @@ sub Execute {
             $cmd = "mv  $file_path $mri_processed_location";
             print $cmd . "\n";
             system($cmd);
+
+####################################################################################
+########################Insert the tarchiveID into the mri_upload table#############
+####################################################################################  
+##            $tarchive_id = getTarchiveID($patient_name);
+##            $query = "INSERT INTO parameter_file SET Value=$value, FileID=$fileID, ParameterTypeID=$paramID, InsertTime=UNIX_TIMESTAMP()";
+##            ${$this->{'dbhr'}}->do($query);
+
+
 
 	    } else {
 	          print MYLOG "$file_target is not added to the tarchive table..\n";
@@ -220,6 +229,24 @@ sub getArchiveLocation {
 	    $finalTarget = $sth->fetchrow_array();
 	} 
 	return $finalTarget;
+}
+
+
+#i######################################################################################
+##########################get the tarchive id##################################
+#######################################################################################
+sub getTarchiveID {
+
+    my $patient_name = shift;
+    chomp $patient_name;
+    my $tarchive_id; 
+    my $query = "SELECT TarchiveID FROM tarchive WHERE PatientName LIKE '\%$patient_name\%'";
+    my $sth = $dbh->prepare($query);
+    $sth->execute();
+    if ($sth->rows > 0) {
+       $tarchive_id = $sth->fetchrow_array();
+    }
+    return $tarchive_id;
 }
 
 
