@@ -150,7 +150,7 @@ sub Execute {
 ###########################################################################
 ###############create the archive files####################################
 ###########################################################################
-        $cmd = "$DICOMTAR $file_path $tarchive_location -clobber -database"
+        $cmd = "$DICOMTAR $file_path $tarchive_location -clobber -database "
                . "-profile $profile ";
         print $cmd . "\n";
         system($cmd);
@@ -165,9 +165,9 @@ sub Execute {
 #####be updated############################################################
 ###########################################################################
 	    if (!($finalTarget eq '')) {
-            $cmd = "$update_header $finalTarget -verbose -set '(0010,0010)'
-                    $patient_name -set '(0010,0020)' $patient_id -database
-                    -profile prod";
+            $cmd = "$update_header $finalTarget -verbose -set '(0010,0010)'"
+                    . " $patient_name -set '(0010,0020)' $patient_id -database"
+                    . " -profile prod";
    		    print $cmd . "\n";
   		    system ($cmd);
 
