@@ -426,8 +426,8 @@ foreach my $minc (@minc_files)  {
     # update mri_acquisition_dates table
         &update_mri_acquisition_dates($sessionID, $tarchiveInfo{'DateAcquired'}, \$dbh);
     # jivify
-        print "Making JIV\n" if $verbose;
-        &NeuroDB::MRI::make_jiv(\$file, $data_dir, $jiv_dir);
+    ##    print "Making JIV\n" if $verbose;
+    ##    &NeuroDB::MRI::make_jiv(\$file, $data_dir, $jiv_dir);
     # make the browser pics
         print "Making browser pics\n" if $verbose;
         &NeuroDB::MRI::make_pics(\$file, $data_dir, $pic_dir, $Settings::horizontalPics);
