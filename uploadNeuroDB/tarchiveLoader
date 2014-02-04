@@ -392,7 +392,7 @@ foreach my $minc (@minc_files)  {
             $CandMismatchError);
         next;
     } else {
-        print LOG "Candidate Mismatch Error is $CandMismatchError\n";
+        print LOG "Candidate $subjectIDsref->{'PSCID'}, $subjectIDsref->{'CandID'} is a valid candidate\n";
     }
     print LOG "==> computing md5 hash for MINC body.\n" if $verbose;
     my $md5hash = &NeuroDB::MRI::compute_hash(\$file);
