@@ -4,8 +4,8 @@ use strict;
 
 #####Get config setting#######################################################
 # checking for profile settings
-if(-f "$ENV{HOME}/.neurodb/prod") {
-    { package Settings; do "$ENV{HOME}/.neurodb/prod" }
+if(-f "$ENV{LORIS_CONFIG}/.loris_mri/prod") {
+    { package Settings; do "$ENV{LORIS_CONFIG}/.loris_mri/prod" }
 } ##Possibly the script can exit if the prod doesn't exist
 #######################################################################################
 # define project space
@@ -47,7 +47,7 @@ foreach my $input (@inputs)
 
     $input =~ s/\t/ /;
     $input =~ s/$Settings::tarchiveLibraryDir//;
-    my $command = "uploadNeuroDB/tarchiveLoader -globLocation -profile prod $Settings::tarchiveLibraryDir/$input";
+    my $command = "tarchiveLoader -globLocation -profile prod $Settings::tarchiveLibraryDir/$input";
     ##if qsub is enabled use it
     if ($Settings::is_qsub) {
 	     open QSUB, "| qsub -V -e $stderr -o $stdout -N process_tarchive_${counter}";

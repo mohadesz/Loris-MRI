@@ -1,4 +1,4 @@
-###source /data/ibis/bin/quarantine/Linux-x86_64/init-sge.sh
-export PATH=/data/gusto/bin/mri:$PATH
-export PERL5LIB=/data/gusto/bin/mri/uploadNeuroDB:$PERL5LIB
+export PATH=/data/%PROJECT%/bin/mri:/data/%PROJECT%/bin/mri/uploadNeuroDB:$PATH
+export PERL5LIB=/data/%PROJECT%/bin/mri/uploadNeuroDB:$PERL5LIB
 export TMPDIR=/tmp
+export LORIS_CONFIG=/data/%PROJECT%/bin/mri/dicom-archive

@@ -1,4 +1,4 @@
-#! /usr/bin/perl
+#!/usr/bin/perl -w
 
 use strict;
 use warnings;
@@ -15,12 +15,15 @@ use NeuroDB::MRI;
 my  $profile    = undef;
 my  $filename;
 my  $sourceFileID;
+my  $tool;
 my  $sourcePipeline;
 my  $pipelineDate;
 my  $coordinateSpace;
 my  $scanType;
 my  $outputType;
+my  $inputFileIDs;
 my  $classifyAlgorithm;
+my  $protocolID;
 my  @args;
 
 my  $Usage  =   <<USAGE;
@@ -34,24 +37,27 @@ Usage: perl register_processed_data.pl [options]
 USAGE
 
 my  @args_table = (
-    ["-profile",            "string",   1,  \$profile,          "name of config file in ~/.neurodb."],
+    ["-profile",            "string",   1,  \$profile,          "name of config file in ../dicom-archive/.loris_mri."],
     ["-file",               "string",   1,  \$filename,         "file that will be registered in the database (full path from the root directory is required)"],
     ["-sourceFileID",       "string",   1,  \$sourceFileID,     "FileID of the raw input dataset that was processed to obtain the file to be registered in the database"],
-    ["-sourcePipeline",     "string",   1,  \$sourcePipeline,   "Pipeline name and version that was used to obtain the file to be registered (example: DTIPrep_v1.1.6)"],
+    ["-sourcePipeline",     "string",   1,  \$sourcePipeline,   "Pipeline name that was used to obtain the file to be registered (example: DTIPrep_pipeline)"],
+    ["-tool",               "string",   1,  \$tool,             "Tool name and version that was used to obtain the file to be registered (example: DTIPrep_v1.1.6)"],
     ["-pipelineDate",       "string",   1,  \$pipelineDate,     "Date the pipeline was run to obtain the file to be registered"],
     ["-coordinateSpace",    "string",   1,  \$coordinateSpace,  "Space coordinate of the file (i.e. linear, nonlinear or native)"],
     ["-scanType",           "string",   1,  \$scanType,         "The scan type of the file that is stored in the table mri_scan_type (i.e. QCedDTI, RGBqc, TxtQCReport, XMLQCReport...)"],
     ["-outputType",         "string",   1,  \$outputType,       "The type of output that will be registered in the database (i.e. QCed, processed, QCReport)"],
+    ["-inputFileIDs",       "string",   1,  \$inputFileIDs,       "List of input fileIDs used to obtain the file to be registered (each entries being separated by ';')"],
     ["-classifyAlgorithm",  "string",   1,  \$classifyAlgorithm,"The algorithm used to classify brain tissue in CIVET"],
+    ["-protocolID",         "string",   1,  \$protocolID,       "ID of the registered protocol that was used to process data"]
 );
 
 Getopt::Tabular::SetHelp ($Usage, '');
 GetOptions(\@args_table, \@ARGV, \@args) || exit 1;
 
 # Input option error checking
-{ package Settings; do "$ENV{HOME}/.neurodb/$profile" }
+{ package Settings; do "$ENV{LORIS_CONFIG}/.loris_mri/$profile" }
 if  ($profile && !defined @Settings::db)    { 
-    print "\n\tERROR: You don't have a configuration file named '$profile' in:  $ENV{HOME}/.neurodb/ \n\n"; 
+    print "\n\tERROR: You don't have a configuration file named '$profile' in:  $ENV{LORIS_CONFIG}/.loris_mri/ \n\n"; 
     exit 33; 
 }
 if  (!$profile) { 
@@ -61,8 +67,9 @@ if  (!$profile) {
 
 # Make sure we have all the arguments we need
 unless  ($filename && $sourceFileID && $sourcePipeline && $scanType
-         && $pipelineDate && $coordinateSpace && $outputType)   {
-    print "$Usage\n\tERROR: -file, -sourceFileID, -sourcePipeline, -scanType, -pipelineDate -coordinateSpace and -outputType must be specified.\n\n";
+         && $pipelineDate && $coordinateSpace && $outputType
+         && $tool && $inputFileIDs)   {
+    print "$Usage\n\tERROR: -file, -sourceFileID, -sourcePipeline, -scanType, -pipelineDate -coordinateSpace, -outputType, -tool and -inputFileIDs must be specified.\n\n";
     exit 33;
 }
 
@@ -83,6 +90,7 @@ my  $prefix     =   $Settings::prefix;
 
 # Needed for log file
 my  $log_dir    =   "$data_dir/logs/registerProcessed";
+system("mkdir -p -m 755 $log_dir") unless (-e $log_dir);
 my  ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)    =   localtime(time);
 my  $date       =   sprintf("%4d-%02d-%02d_%02d:%02d:%02d",$year+1900,$mon+1,$mday,$hour,$min,$sec);
 my  $log        =   "$log_dir/registerProcessed$date.log";
@@ -201,6 +209,10 @@ $file->setFileData('PipelineDate',$pipelineDate);
 print LOG "\t -> Set PipelineDate to $pipelineDate.\n";
 $file->setFileData('OutputType',$outputType);
 print LOG "\t -> Set OutputType to $outputType.\n";
+if ($protocolID) {
+    $file->setFileData('ProcessProtocolID', $protocolID);
+    print LOG "\t -> Set ProcessProtocolID to $protocolID.\n";
+}
 
 if  (defined($classifyAlgorithm))   {
     $file->setFileData('ClassifyAlgorithm',$classifyAlgorithm);
@@ -237,6 +249,10 @@ unless  ($fileID)   {
     # and exit
     exit 1;
 }
+
+# Insert into files_intermediary the intermediary inputs stored in inputFileIDs.
+my $intermediary_insert = &insert_intermedFiles($fileID, $inputFileIDs, $tool);
+print LOG "\n==> FAILED TO INSERT INTERMEDIARY FILES FOR $fileID!\n\n" if (!$intermediary_insert);
 
 if  ($file->getFileDatum('FileType') eq 'mnc')  {
     # Jivify
@@ -415,3 +431,31 @@ sub which_directory {
     return ($dir);
 }
 
+
+=pod
+Function that will insert into the files_intermediary table of the database, intermediary outputs that were used to obtain the processed file.
+- Input:  - fileID : fileID of the registered processed file
+          - inputFileIDs : array containing the list of input files that were used to obtain the processed file
+          - tool : tool that was used to obtain the processed file
+- Output: - return undef if insertion did not succeed
+          - return 1 if insertion into the intermediary table succeeded. 
+=cut
+sub insert_intermedFiles {
+    my ($fileID, $inputFileIDs, $tool) = @_;
+
+    return undef if ((!$fileID) || (!$inputFileIDs) || (!$tool));
+
+    # Prepare query to execute in the for loop 
+    my $query   = "INSERT INTO files_intermediary " .
+                  "(Output_FileID, Input_FileID, Tool) " .
+                  "Values (?, ?, ?)";
+    my $sth     = $dbh->prepare($query);
+
+    my (@inputIDs)  = split(';', $inputFileIDs);
+    foreach my $inID (@inputIDs) {
+        my $success = $sth->execute($fileID, $inID, $tool);
+        return undef if (!$success);
+    }
+
+    return 1;
+}

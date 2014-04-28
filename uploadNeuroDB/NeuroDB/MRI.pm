@@ -74,7 +74,7 @@ sub getSubjectIDs {
 	    return undef;
 	}
     }
-    my $sth = $${dbhr}->prepare("SELECT VisitNo FROM session WHERE CandID='$subjectID{'CandID'}' AND Visit_label='$subjectID{'visitLabel'}' AND Active='Y' AND Cancelled='N'");
+    my $sth = $${dbhr}->prepare("SELECT VisitNo FROM session WHERE CandID='$subjectID{'CandID'}' AND Visit_label='$subjectID{'visitLabel'}' AND Active='Y'");
     $sth->execute();
     my $row = $sth->fetchrow_hashref();
     $subjectID{'visitNo'} = $row->{'VisitNo'};
@@ -353,7 +353,7 @@ sub getObjective
 	return 0;
     }
     
-    my $query = "SELECT SubprojectID FROM session WHERE CandID='$subjectIDs{'CandID'}' AND Visit_label='$subjectIDs{'visitLabel'}' AND Active='Y' AND Cancelled='N' ORDER BY ID DESC LIMIT 1";
+    my $query = "SELECT SubprojectID FROM session WHERE CandID='$subjectIDs{'CandID'}' AND Visit_label='$subjectIDs{'visitLabel'}' AND Active='Y' ORDER BY ID DESC LIMIT 1";
     my $sth = $${dbhr}->prepare($query) or die "Can't prepare $query: ".$${dbhr}->errstr."\n";
     
     $sth->execute();
@@ -366,7 +366,7 @@ sub getObjective
     
     unless($objective>0) {
         # there probably isn't a valid row for this visit...
-        $query = "SELECT SubprojectID FROM session WHERE CandID='$subjectIDs{'CandID'}' AND Active='Y' AND Cancelled='N' ORDER BY ID DESC LIMIT 1";
+        $query = "SELECT SubprojectID FROM session WHERE CandID='$subjectIDs{'CandID'}' AND Active='Y' ORDER BY ID DESC LIMIT 1";
         $sth = $${dbhr}->prepare($query);
         $sth->execute();
         
@@ -394,31 +394,31 @@ sub identify_scan_db {
 
     my  ($psc, $subjectref, $fileref, $dbhr,$minc_location) = @_;
 
-    my $candid = $${subjectref}->{'CandID'};
-    my $pscid = $${subjectref}->{'PSCID'};
-    my $visit = $${subjectref}->{'visitLabel'};
-    my $objective = $${subjectref}->{'subprojectID'};
+    my $candid = ${subjectref}->{'CandID'};
+    my $pscid = ${subjectref}->{'PSCID'};
+    my $visit = ${subjectref}->{'visitLabel'};
+    my $objective = ${subjectref}->{'subprojectID'};
     # get parameters from minc header
-    my $tr = $${fileref}->getParameter('repetition_time');
-    my $te = $${fileref}->getParameter('echo_time');
-    my $ti = $${fileref}->getParameter('inversion_time');
-    my $patient_name =  $${fileref}->getParameter('patient_name');
+    my $tr = ${fileref}->getParameter('repetition_time');
+    my $te = ${fileref}->getParameter('echo_time');
+    my $ti = ${fileref}->getParameter('inversion_time');
+    my $patient_name =  ${fileref}->getParameter('patient_name');
     if (defined($tr)) {  $tr = &Math::Round::nearest(0.01, $tr*1000);  }
     if (defined($te)) {  $te = &Math::Round::nearest(0.01, $te*1000);  }
     if (defined($ti)) {  $ti = &Math::Round::nearest(0.01, $ti*1000);  }
     
-    my $xstep = $${fileref}->getParameter('xstep');
-    my $ystep = $${fileref}->getParameter('ystep');
-    my $zstep = $${fileref}->getParameter('zstep');
+    my $xstep = ${fileref}->getParameter('xstep');
+    my $ystep = ${fileref}->getParameter('ystep');
+    my $zstep = ${fileref}->getParameter('zstep');
 
-    my $time = $${fileref}->getParameter('time');    
+    my $time = ${fileref}->getParameter('time');    
 
-    my $xspace = $${fileref}->getParameter('xspace');
-    my $yspace = $${fileref}->getParameter('yspace');
-    my $zspace = $${fileref}->getParameter('zspace');
-    my $seriesUID = $${fileref}->getParameter('series_instance_uid');
-    my $slice_thickness = $${fileref}->getParameter('slice_thickness');
-    my $series_description = $${fileref}->getParameter('series_description');
+    my $xspace = ${fileref}->getParameter('xspace');
+    my $yspace = ${fileref}->getParameter('yspace');
+    my $zspace = ${fileref}->getParameter('zspace');
+    my $seriesUID = ${fileref}->getParameter('series_instance_uid');
+    my $slice_thickness = ${fileref}->getParameter('slice_thickness');
+    my $series_description = ${fileref}->getParameter('series_description');
     
     if(0) {
         print "\ntr:\t$tr\nte:\t$te\nti:\t$ti\nst:\t$slice_thickness\n";
@@ -431,10 +431,10 @@ sub identify_scan_db {
     my $n_slices = 0;
     
     # get ScannerID from DB
-    my $manufacturer = $${fileref}->getParameter('manufacturer');
-    my $model = $${fileref}->getParameter('manufacturer_model_name');
-    my $serial_number = $${fileref}->getParameter('device_serial_number');
-    my $software = $${fileref}->getParameter('software_versions');
+    my $manufacturer = ${fileref}->getParameter('manufacturer');
+    my $model = ${fileref}->getParameter('manufacturer_model_name');
+    my $serial_number = ${fileref}->getParameter('device_serial_number');
+    my $software = ${fileref}->getParameter('software_versions');
     
     my $query = "SELECT ID FROM mri_scanner WHERE Manufacturer='$manufacturer' AND Model='$model' AND Serial_number='$serial_number' AND Software='$software'";
     
@@ -700,7 +700,7 @@ sub register_db {
     # build the insert query
     my $query = "INSERT INTO files SET ";
 
-    foreach my $key ('File', 'SeriesUID', 'EchoTime','SessionID', 'CoordinateSpace', 'ClassifyAlgorithm', 'OutputType', 'AcquisitionProtocolID', 'FileType', 'InsertedByUserID','SourcePipeline','PipelineDate','SourceFileID') {
+    foreach my $key ('File', 'SessionID','EchoTime', 'CoordinateSpace', 'ClassifyAlgorithm', 'OutputType', 'AcquisitionProtocolID', 'FileType', 'InsertedByUserID', 'Caveat', 'SeriesUID', 'TarchiveSource','SourcePipeline','PipelineDate','SourceFileID') {
         # add the key=value pair to the query
         $query .= "$key=".$dbh->quote($${fileData{$key}}).", ";
     }
@@ -1012,6 +1012,9 @@ sub compute_hash {
 	$ctx->add($file->getParameter('patient:birthdate'));          # Patient DOB
 	$ctx->add($file->getParameter('study_instance_uid'));         # StudyInstanceUID
 	$ctx->add($file->getParameter('series_description'));         # SeriesDescription
+    $ctx->add($file->getParameter('processing:intergradient_rejected')); 
+    # processing:intergradient_rejected minc field is the only field
+    # separating a noRegQCedDTI and a QCedDTI minc file.
     }
 
     # finally generate the hex digest
